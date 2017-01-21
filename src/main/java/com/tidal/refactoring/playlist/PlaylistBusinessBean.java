@@ -7,7 +7,7 @@ import com.tidal.refactoring.playlist.data.PlayListTrack;
 import com.tidal.refactoring.playlist.data.Track;
 import com.tidal.refactoring.playlist.exception.PlaylistException;
 
-import java.util.Collections;
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -58,7 +58,7 @@ public class PlaylistBusinessBean {
 
             // Add new tracks the existing ones, and mark the playlist as updated
             playList.getPlayListTracks().addAll(added);
-            playList.setNrOfTracks(playList.getNrOfTracks() + added.size());
+            playList.setNrOfTracks(playList.getPlayListTracks().size());
             playList.setLastUpdated(new Date());
 
             // TODO: I assume that the Dao should be called to store the new and updated tracks, and the playlist
@@ -95,9 +95,26 @@ public class PlaylistBusinessBean {
     /**
      * Remove the tracks from the playlist located at the sent indexes
      */
-    List<PlayListTrack> removeTracks(String uuid, List<Integer> indexes) throws PlaylistException {
-        // TODO
-        return Collections.EMPTY_LIST;
+    List<PlayListTrack> removeTracks(String uuid, List<Integer> indices) throws PlaylistException {
+        PlayList playList = playlistDaoBean.getPlaylistByUUID(uuid); // Assumes exception is thrown by Dao if playlist does not exist
+
+        List<PlayListTrack> toBeRemoved = playList.getPlayListTracks().stream()
+                .filter(track -> indices.contains(track.getIndex()))
+                .collect(toList());
+
+        playList.getPlayListTracks().removeAll(toBeRemoved);
+
+        playList.getPlayListTracks().forEach(track -> decrementIndexAfterRemoval(track, indices));
+
+        playList.setLastUpdated(new Date());
+        playList.setNrOfTracks(playList.getPlayListTracks().size());
+        subtractDurationFromPlaylist(
+                playList,
+                toBeRemoved.stream()
+                        .map(PlayListTrack::getTrack)
+                        .collect(toList()));
+
+        return toBeRemoved;
     }
 
     private boolean validateIndexes(int toIndex, int length) {
@@ -106,5 +123,19 @@ public class PlaylistBusinessBean {
 
     private void addTrackDurationToPlaylist(PlayList playList, Track track) {
         playList.setDuration(playList.getDuration() + track.getDuration());
+    }
+
+    private void subtractDurationFromPlaylist(PlayList playList, Collection<Track> tracks) {
+        float durationOfRemoved = (float) tracks.stream()
+                .mapToDouble(Track::getDuration)
+                .sum();
+        playList.setDuration(playList.getDuration() - durationOfRemoved);
+    }
+
+    private void decrementIndexAfterRemoval(PlayListTrack playListTrack, List<Integer> removedIndices) {
+        // Decrement the given track's index by how many removed tracks have lower indices
+        playListTrack.setIndex(playListTrack.getIndex() - (int) removedIndices.stream()
+                .filter(removedIndex -> removedIndex < playListTrack.getIndex())
+                .count());
     }
 }

@@ -13,9 +13,10 @@ import org.testng.annotations.Test;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonList;
+import static java.util.Collections.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
@@ -141,6 +142,37 @@ public class PlaylistBusinessBeanTest {
                 .hasSize(1)
                 .extracting("id", "playlist.id", "index", "track.id")
                 .containsExactly(tuple(null, 1, 0,  1)); // TODO: id should not be null!
+    }
+
+    @Test
+    public void removeEmptyTrackListTracksShouldReturnEmptyList() {
+        PlayList emptyPlaylist = mock(PlayList.class);
+        when(emptyPlaylist.getPlayListTracks()).thenReturn(emptySet());
+        when(playlistDaoBeanMock.getPlaylistByUUID(anyString())).thenReturn(emptyPlaylist);
+
+        List<PlayListTrack> removedTracks = playlistBusinessBean.removeTracks("uuid", emptyList());
+
+        assertThat(removedTracks).isEmpty();
+    }
+
+    @Test
+    public void removeMultipleTrackListTracksShouldReturnRemoved() {
+        PlayList playList = mock(PlayList.class);
+        Set<PlayListTrack> tracks = new HashSet<>(asList(
+                createTrack(1, createTrack("foo", 1f, 1, 1)),
+                createTrack(2, createTrack("bar", 2f, 2, 2)),
+                createTrack(3, createTrack("hey", 3f, 3, 3)),
+                createTrack(4, createTrack("you", 4f, 4, 4))));
+        when(playList.getPlayListTracks()).thenReturn(tracks);
+        when(playlistDaoBeanMock.getPlaylistByUUID(anyString())).thenReturn(playList);
+
+        List<PlayListTrack> removedTracks = playlistBusinessBean.removeTracks("uuid", asList(1, 3));
+
+        assertThat(removedTracks).hasSize(2)
+                .extracting("index").containsOnly(1, 3);
+
+        assertThat(tracks).hasSize(2)
+                .extracting("index").containsOnly(1, 2);
     }
 
     // TODO: more tests should be written when the Dao is updated with methods for saving updates!
