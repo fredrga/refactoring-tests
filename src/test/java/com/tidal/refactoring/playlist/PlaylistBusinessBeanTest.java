@@ -37,6 +37,16 @@ public class PlaylistBusinessBeanTest {
     }
 
     @Test
+    public void unexpectedExceptionShouldBeThrownAsGenericError() {
+        when(playlistDaoBeanMock.getPlaylistByUUID(anyString())).thenThrow(new IllegalStateException("test"));
+
+        assertThatThrownBy(
+                () -> playlistBusinessBean.addTracks("uuid", singletonList(new Track()), 1))
+                .isInstanceOf(PlaylistException.class)
+                .hasMessage("Generic error");
+    }
+
+    @Test
     public void exceedingMaxShouldNotBeAllowed() {
         PlayList fullPlaylist = mock(PlayList.class);
         when(fullPlaylist.getNrOfTracks()).thenReturn(PlaylistBusinessBean.MAX_NUMBER);
@@ -45,10 +55,10 @@ public class PlaylistBusinessBeanTest {
         assertThatThrownBy(
                 () -> playlistBusinessBean.addTracks("uuid", singletonList(new Track()), 1))
                 .isInstanceOf(PlaylistException.class)
-                .hasMessage("Generic error");
+                .hasMessage("Playlist cannot have more than " + PlaylistBusinessBean.MAX_NUMBER + " tracks");
     }
 
-    @Test(enabled = false) // TODO: incorrect index should be rejected
+    @Test
     public void incorrectIndexShouldBeRejected() {
         PlayList fullPlaylist = mock(PlayList.class);
         when(fullPlaylist.getNrOfTracks()).thenReturn(3);
@@ -57,10 +67,10 @@ public class PlaylistBusinessBeanTest {
         assertThatThrownBy(
                 () -> playlistBusinessBean.addTracks("uuid", singletonList(new Track()), 5))
                 .isInstanceOf(PlaylistException.class)
-                .hasMessage("Generic error");
+                .hasMessage("5 in not valid index in a playlist of 3 tracks.");
     }
 
-    @Test(enabled = false) // TODO: incorrect index should be rejected
+    @Test
     public void negativeIndexShouldBeRejected() {
         PlayList playList = mock(PlayList.class);
         when(playList.getNrOfTracks()).thenReturn(3);
@@ -69,7 +79,7 @@ public class PlaylistBusinessBeanTest {
         assertThatThrownBy(
                 () -> playlistBusinessBean.addTracks("uuid", singletonList(new Track()), -1))
                 .isInstanceOf(PlaylistException.class)
-                .hasMessage("Generic error");
+                .hasMessage("-1 in not valid index in a playlist of 3 tracks.");
     }
 
     @Test
@@ -132,6 +142,8 @@ public class PlaylistBusinessBeanTest {
                 .extracting("id", "playlist.id", "index", "track.id")
                 .containsExactly(tuple(null, 1, 0,  1)); // TODO: id should not be null!
     }
+
+    // TODO: more tests should be written when the Dao is updated with methods for saving updates!
 
 
     private Track createTrack(String title, float duration, int artistId, int id) {
