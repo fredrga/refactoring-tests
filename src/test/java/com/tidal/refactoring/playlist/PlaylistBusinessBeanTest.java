@@ -1,48 +1,152 @@
 package com.tidal.refactoring.playlist;
 
-import com.google.inject.Inject;
+import com.tidal.refactoring.playlist.dao.PlaylistDaoBean;
+import com.tidal.refactoring.playlist.data.PlayList;
 import com.tidal.refactoring.playlist.data.PlayListTrack;
 import com.tidal.refactoring.playlist.data.Track;
-import org.testng.annotations.AfterMethod;
+import com.tidal.refactoring.playlist.exception.PlaylistException;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Guice;
 import org.testng.annotations.Test;
 
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
-import java.util.UUID;
 
-import static org.testng.AssertJUnit.assertTrue;
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.groups.Tuple.tuple;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-@Guice(modules = TestBusinessModule.class)
 public class PlaylistBusinessBeanTest {
 
-    @Inject
+    @Mock
+    private PlaylistDaoBean playlistDaoBeanMock;
+
+    @InjectMocks
     PlaylistBusinessBean playlistBusinessBean;
 
     @BeforeMethod
     public void setUp() throws Exception {
-
-    }
-
-    @AfterMethod
-    public void tearDown() throws Exception {
-
+        MockitoAnnotations.initMocks(this);
     }
 
     @Test
-    public void testAddTracks() throws Exception {
-        List<Track> trackList = new ArrayList<Track>();
+    public void exceedingMaxShouldNotBeAllowed() {
+        PlayList fullPlaylist = mock(PlayList.class);
+        when(fullPlaylist.getNrOfTracks()).thenReturn(PlaylistBusinessBean.MAX_NUMBER);
+        when(playlistDaoBeanMock.getPlaylistByUUID(anyString())).thenReturn(fullPlaylist);
 
+        assertThatThrownBy(
+                () -> playlistBusinessBean.addTracks("uuid", singletonList(new Track()), 1))
+                .isInstanceOf(PlaylistException.class)
+                .hasMessage("Generic error");
+    }
+
+    @Test(enabled = false) // TODO: incorrect index should be rejected
+    public void incorrectIndexShouldBeRejected() {
+        PlayList fullPlaylist = mock(PlayList.class);
+        when(fullPlaylist.getNrOfTracks()).thenReturn(3);
+        when(playlistDaoBeanMock.getPlaylistByUUID(anyString())).thenReturn(fullPlaylist);
+
+        assertThatThrownBy(
+                () -> playlistBusinessBean.addTracks("uuid", singletonList(new Track()), 5))
+                .isInstanceOf(PlaylistException.class)
+                .hasMessage("Generic error");
+    }
+
+    @Test(enabled = false) // TODO: incorrect index should be rejected
+    public void negativeIndexShouldBeRejected() {
+        PlayList playList = mock(PlayList.class);
+        when(playList.getNrOfTracks()).thenReturn(3);
+        when(playlistDaoBeanMock.getPlaylistByUUID(anyString())).thenReturn(playList);
+
+        assertThatThrownBy(
+                () -> playlistBusinessBean.addTracks("uuid", singletonList(new Track()), -1))
+                .isInstanceOf(PlaylistException.class)
+                .hasMessage("Generic error");
+    }
+
+    @Test
+    public void addingTracksToEmptyPlaylistShouldReturnAddedTracks() {
+        PlayList emptyPlaylist = mock(PlayList.class);
+        when(emptyPlaylist.getNrOfTracks()).thenReturn(0);
+        when(emptyPlaylist.getPlayListTracks()).thenReturn(new HashSet<>());
+        when(playlistDaoBeanMock.getPlaylistByUUID(anyString())).thenReturn(emptyPlaylist);
+
+        List<PlayListTrack> addedTracks = playlistBusinessBean.addTracks(
+                "uuid", asList(
+                        createTrack("title1", 1.42f, 314, 1),
+                        createTrack("title2", 1.43f, 315, 2)),
+                0);
+
+        assertThat(addedTracks)
+                .hasSize(2)
+                .extracting("index", "track.id")
+                .containsOnly(
+                        tuple(0, 1),
+                        tuple(1, 2));
+    }
+
+    @Test
+    public void addingTracksToExistingPlaylistShouldReturnAddedTracks() {
+        PlayList playList = mock(PlayList.class);
+        when(playList.getNrOfTracks()).thenReturn(2);
+        when(playList.getPlayListTracks()).thenReturn(new HashSet<>(asList(
+                createTrack(0, createTrack("title1", 1.42f, 314, 1)),
+                createTrack(1, createTrack("title2", 1.43f, 315, 2)))));
+        when(playlistDaoBeanMock.getPlaylistByUUID(anyString())).thenReturn(playList);
+
+        List<PlayListTrack> addedTracks = playlistBusinessBean.addTracks(
+                "uuid", asList(
+                        createTrack("title1", 1.42f, 314, 1),
+                        createTrack("title2", 1.43f, 315, 2)),
+                1);
+
+        assertThat(addedTracks)
+                .hasSize(2)
+                .extracting("index", "track.id")
+                .containsOnly(
+                        tuple(1, 1),
+                        tuple(2, 2));
+    }
+
+    @Test
+    public void addingTracksToPlaylistShouldWriteAllPlaylistTrackFields() {
+        PlayList emptyPlaylist = mock(PlayList.class);
+        when(emptyPlaylist.getId()).thenReturn(1);
+        when(emptyPlaylist.getNrOfTracks()).thenReturn(0);
+        when(emptyPlaylist.getPlayListTracks()).thenReturn(new HashSet<>());
+        when(playlistDaoBeanMock.getPlaylistByUUID(anyString())).thenReturn(emptyPlaylist);
+
+        List<PlayListTrack> addedTracks = playlistBusinessBean.addTracks(
+                "uuid", singletonList(createTrack("title1", 1.42f, 314, 1)), 0);
+
+        assertThat(addedTracks)
+                .hasSize(1)
+                .extracting("id", "playlist.id", "index", "track.id")
+                .containsExactly(tuple(null, 1, 0,  1)); // TODO: id should not be null!
+    }
+
+
+    private Track createTrack(String title, float duration, int artistId, int id) {
         Track track = new Track();
-        track.setArtistId(4);
-        track.setTitle("A brand new track");
-        track.setId(76868);
+        track.setTitle(title);
+        track.setDuration(duration);
+        track.setArtistId(artistId);
+        track.setId(id);
+        return track;
+    }
 
-        trackList.add(track);
-
-        List<PlayListTrack> playListTracks = playlistBusinessBean.addTracks(UUID.randomUUID().toString(), trackList, 5);
-
-        assertTrue(playListTracks.size() > 0);
+    private PlayListTrack createTrack(int index, Track track) {
+        PlayListTrack playListTrack = new PlayListTrack();
+        playListTrack.setIndex(index);
+        playListTrack.setTrack(track);
+        return playListTrack;
     }
 }

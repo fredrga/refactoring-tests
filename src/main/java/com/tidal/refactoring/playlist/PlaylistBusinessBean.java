@@ -11,6 +11,8 @@ import java.util.*;
 
 public class PlaylistBusinessBean {
 
+    static final int MAX_NUMBER = 500;
+
     private PlaylistDaoBean playlistDaoBean;
 
     @Inject
@@ -28,7 +30,7 @@ public class PlaylistBusinessBean {
             PlayList playList = playlistDaoBean.getPlaylistByUUID(uuid);
 
             //We do not allow > 500 tracks in new playlists
-            if (playList.getNrOfTracks() + tracksToAdd.size() > 500) {
+            if (playList.getNrOfTracks() + tracksToAdd.size() > MAX_NUMBER) {
                 throw new PlaylistException("Playlist cannot have more than " + 500 + " tracks");
             }
 

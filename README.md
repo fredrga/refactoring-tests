@@ -1,7 +1,7 @@
 # Tidal recruiting refactoring test
 
 ##Intro
-The code in this project is a isolated and very simplified version of our add-track-to-playlist business code.
+The code in this project is an isolated and very simplified version of our add-track-to-playlist business code.
 
 ###Setup notes
 - We have used Guice for dependency injection (in the real service we currently use EJB injection), for the setup to be simpler.
